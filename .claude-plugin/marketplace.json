@@ -1,0 +1,15 @@
+{
+  "name": "claude-context-meter",
+  "description": "context-meter: a live context-window meter mod for Claude Code and Cowork",
+  "owner": {
+    "name": "ronmiz",
+    "url": "https://github.com/ronmiz"
+  },
+  "plugins": [
+    {
+      "name": "context-meter",
+      "source": "./",
+      "description": "Live context-window meter for Claude Code and Cowork"
+    }
+  ]
+}

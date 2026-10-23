@@ -1,0 +1,57 @@
+{
+  "name": "context-meter",
+  "version": "1.0.0",
+  "description": "Live context-window meter: a band above the prompt, a breakdown pane, threshold alerts, a /ctx command, and a status line at the end of each reply where the surface draws no mod UI",
+  "author": {
+    "name": "ronmiz",
+    "url": "https://github.com/ronmiz"
+  },
+  "license": "MIT",
+  "keywords": [
+    "context",
+    "tokens",
+    "context-window",
+    "status",
+    "mod"
+  ],
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "language": {
+      "type": "string",
+      "title": "Language",
+      "description": "Language of the status line, band, pane and alerts.",
+      "options": [
+        "en",
+        "he"
+      ],
+      "default": "en"
+    },
+    "warnPercent": {
+      "type": "number",
+      "title": "Yellow from (%)",
+      "description": "The meter turns yellow at this fill percentage.",
+      "default": 50
+    },
+    "dangerPercent": {
+      "type": "number",
+      "title": "Red and first alert from (%)",
+      "description": "The meter turns red and the first alert fires at this fill percentage.",
+      "default": 75
+    },
+    "criticalPercent": {
+      "type": "number",
+      "title": "Second alert from (%)",
+      "description": "A second alert fires at this fill percentage.",
+      "default": 90
+    },
+    "replyStatusLine": {
+      "type": "boolean",
+      "title": "Status line at the end of each reply",
+      "description": "Adds the live reading to each prompt as hidden context so Claude ends its reply with one status line. Useful where mod UI is not drawn (a Cowork chat). Costs a few dozen tokens per turn.",
+      "default": true
+    }
+  },
+  "homepage": "https://github.com/ronmiz/claude-context-meter",
+  "repository": "https://github.com/ronmiz/claude-context-meter",
+  "icon": "./.claude-plugin/icon.png"
+}

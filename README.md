@@ -1,0 +1,78 @@
+# context-meter
+
+A Claude mod that shows how full the context window is, live, from the engine's own measurement (`$.session.usage()`, the same figures as the Claude Code status line). Nothing is estimated unless it says so.
+
+## What it does
+
+- **Band above the prompt**: fill percentage and tokens used / window size, green below 50%, yellow from 50%, red from 75%. Updates after every turn.
+- **Context pane** (the band's "Details" button, or `/ctx`): breakdown by category (a free local estimate by default; "Refresh breakdown" runs an exact count), plus 5-hour / 7-day usage limits and session cost when the host reports them. A missing figure shows as "—", never a guess.
+- **Alerts** once each time the fill crosses 75% and 90%; they re-arm when the fill drops back (after a compaction).
+- **Status line at the end of each reply** — for surfaces that draw no mod UI, such as a Cowork chat:
+
+  `🟢 ▰▰▰▱▱▱▱▱▱▱ 31% · 308k / 1M · +6.5k`
+
+  The dot turns 🟡 from 50% and 🔴 from 75% (where it adds "consider a new chat"); the last part is what the previous turn added. See "Privacy and cost" below.
+
+- **`ctx` card**: send the message `ctx` (or `ctx full` for an exact count) and Claude replies with a plain-text card of the live reading, breakdown, limits and cost, a few hundred tokens instead of a drawn panel. Asking in your own words ("how full is the context?") works too, through the mod's `context_usage` tool.
+
+## Install
+
+At the prompt of a terminal session:
+
+```
+/plugin install context-meter --marketplace ronmiz/claude-context-meter
+```
+
+From a shell:
+
+```
+claude plugin install context-meter --marketplace ronmiz/claude-context-meter
+```
+
+In the desktop app, where `/plugin` does not run: click **+** next to the prompt box, then **Plugins**, **Add marketplace** with `ronmiz/claude-context-meter`, then **Add plugin**.
+
+Answer `y` to add the marketplace, then pick a scope (user scope loads it in every session).
+
+## Settings
+
+| Setting | Default | What it does |
+| --- | --- | --- |
+| `language` | `en` | `en` or `he`: status line, band, pane and alerts |
+| `warnPercent` | 50 | Meter turns yellow |
+| `dangerPercent` | 75 | Meter turns red, first alert |
+| `criticalPercent` | 90 | Second alert |
+| `replyStatusLine` | true | Status line at the end of each reply |
+
+## Privacy and cost
+
+With `replyStatusLine` on, the mod adds one short block to each prompt you send, as context only Claude sees: the latest reading (for example `🟢 ▰▰▰▱▱▱▱▱▱▱ 27% · 271k / 1M`) and an instruction to end the reply with that line. The reading is the one measured after the previous turn. It costs a few dozen tokens per turn and sends nothing anywhere else. Turn it off in the plugin settings if you only want the band and pane.
+
+The mod reads only usage figures from the engine; it reads no files, makes no network calls and stores only its own last reading.
+
+## Where it shows
+
+| Surface | Band / pane | Reply status line |
+| --- | --- | --- |
+| Terminal (Claude Code CLI) | yes | yes |
+| Desktop app, Code tab | yes | yes |
+| Cowork chat | not drawn by the host | yes |
+
+## Development
+
+```
+claude plugin validate .
+claude plugin test .
+```
+
+---
+
+## בעברית
+
+מוד ל-Claude שמציג כמה מחלון ההקשר מנוצל, בזמן אמת, לפי המדידה של המנוע עצמו.
+
+- **פס מעל שורת הפרומפט** עם אחוז וטוקנים, בירוק, צהוב ואדום.
+- **פאנל פירוט** (כפתור "פירוט" או `/ctx`) עם פירוט לפי קטגוריות, מגבלות שימוש ועלות.
+- **התראות** ב-75% וב-90%.
+- **שורת סטטוס בסוף כל תשובה** ב-Cowork, שלא מציג ממשק של מודים.
+
+**פרטיות:** כשהאפשרות `replyStatusLine` פעילה, המוד מצרף לכל הודעה שלך בלוק קצר שרק Claude רואה, עם המדידה האחרונה. זה עולה כמה עשרות טוקנים לתור, ושום דבר לא נשלח לשום מקום אחר. אפשר לכבות את זה בהגדרות.
