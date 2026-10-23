@@ -33,6 +33,8 @@ In the desktop app, where `/plugin` does not run: click **+** next to the prompt
 
 Answer `y` to add the marketplace, then pick a scope (user scope loads it in every session).
 
+**In a company on a Claude Team or Enterprise plan**, the simplest way is for an owner to add it to the organization: see [ADMIN.md](ADMIN.md).
+
 ## Settings
 
 | Setting | Default | What it does |
