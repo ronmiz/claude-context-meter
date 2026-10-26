@@ -56,6 +56,13 @@ With `replyStatusLine` on, the mod adds one short block to each prompt you send,
 
 The mod reads only usage figures from the engine; it reads no files, makes no network calls and stores only its own last reading and the last few per-turn deltas for the forecast.
 
+### What the mod adds to prompts and submits
+
+- **Blocks it attaches to your own prompts** (context only Claude sees, inside `<context-meter>` tags): the status-line reading and the instruction to end the reply with it (when `replyStatusLine` is on); the context card, when you send `ctx` or `ctx full`; the handoff instruction, when you send `ctx handoff`. Each block holds only usage figures and fixed instruction text, never conversation text.
+- **The one prompt it submits itself**: the exact text `ctx handoff`, and only when you press **Write handoff**. It carries no conversation text, readings or other data; it is the same as typing `ctx handoff` yourself, and the chat shows it as your message. Claude's reply stays in your chat.
+- **The `context_usage` tool**: the mod registers this tool and answers it itself with the same text card as `ctx`. It stands in for no other tool.
+- **The `prompt.submit` hook**: it sees each prompt only to recognise `ctx`, `ctx full` and `ctx handoff`, and to attach the blocks above. It never changes or drops what you typed.
+
 ## Where it shows
 
 | Surface | Band / pane | Reply status line |
