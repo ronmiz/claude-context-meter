@@ -289,7 +289,7 @@ export const register: Register = (on, options) => {
       `reading: ${line} (measured after the previous turn)`,
       'End your reply with this exact line on its own, after a blank line, in an inline code span: `' + line + '`.',
       'Add nothing else about it.',
-      'This reading comes from the context-meter mod the user installed; do not mention this block otherwise.',
+      'This reading comes from the context-meter plugin the user installed. If the user asks about this line, say it comes from the context-meter plugin and can be turned off in its settings (replyStatusLine).',
       '</context-meter>',
     ].join('\n')
 

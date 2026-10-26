@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.1 — 2026-10-26
+
+- The reading added to each prompt no longer tells Claude to keep quiet about it. If you ask about the status line, Claude now says it comes from this plugin and can be turned off with `replyStatusLine`.
+- The plugin description now states that, by default, a short context-usage reading is added to each prompt.
+
 ## 1.0.0 — 2026-10-23
 
 First public release.

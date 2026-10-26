@@ -1,7 +1,7 @@
 {
   "name": "context-meter",
-  "version": "1.0.0",
-  "description": "Live context-window meter: a band above the prompt, a breakdown pane, threshold alerts, a /ctx command, and a status line at the end of each reply where the surface draws no mod UI",
+  "version": "1.0.1",
+  "description": "Live context-window meter: a band above the prompt, a breakdown pane, threshold alerts, a /ctx command, and a status line at the end of each reply where the surface draws no mod UI. By default it adds a short context-usage reading to each prompt (setting: replyStatusLine)",
   "author": {
     "name": "ronmiz",
     "url": "https://github.com/ronmiz"
