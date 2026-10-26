@@ -13,7 +13,9 @@ A Claude mod that shows how full the context window is, live, from the engine's 
 
   The dot turns 🟡 from 50% and 🔴 from 75% (where it adds "consider a new chat"); the last part is what the previous turn added. See "Privacy and cost" below.
 
-- **`ctx` card**: send the message `ctx` (or `ctx full` for an exact count) and Claude replies with a plain-text card of the live reading, breakdown, limits and cost, a few hundred tokens instead of a drawn panel. Asking in your own words ("how full is the context?") works too, through the mod's `context_usage` tool.
+- **`ctx` card**: send the message `ctx` (or `ctx full` for an exact count) and Claude replies with a plain-text card of the live reading, breakdown, limits and cost, a few hundred tokens instead of a drawn panel. Asking in your own words ("how full is the context?") works too, through the mod's `context_usage` tool. The mod answers that tool itself, with the same card; it is the mod's own tool and stands in for no other.
+- **Turns forecast** (estimate): from the yellow threshold on, the band and the status line add how many turns are left at the recent pace, for example `~7 turns to 75%`, or `~10 turns to full` once past the red threshold. It averages the last 5 turns, needs at least 3, and resets after a compaction. The pane shows it at any fill.
+- **Handoff**: past the red threshold the band shows a **Write handoff** button (the pane has one at any fill). In Cowork, send the message `ctx handoff`. Either way Claude replies with one block to paste into a new chat: goal, decisions, what is done, next steps, files and open questions. The button sends `ctx handoff` for you, so it appears in the chat as your message.
 
 ## Install
 
@@ -43,13 +45,16 @@ Answer `y` to add the marketplace, then pick a scope (user scope loads it in eve
 | `warnPercent` | 50 | Meter turns yellow |
 | `dangerPercent` | 75 | Meter turns red, first alert |
 | `criticalPercent` | 90 | Second alert |
+| `bandStyle` | `full` | `compact`: a short bar, the percentage and the forecast, and a shorter reply status line; tokens and delta move to the pane |
 | `replyStatusLine` | true | Status line at the end of each reply |
 
 ## Privacy and cost
 
 With `replyStatusLine` on, the mod adds one short block to each prompt you send, as context only Claude sees: the latest reading (for example `🟢 ▰▰▰▱▱▱▱▱▱▱ 27% · 271k / 1M`) and an instruction to end the reply with that line. The reading is the one measured after the previous turn. It costs a few dozen tokens per turn and sends nothing anywhere else. Turn it off in the plugin settings if you only want the band and pane.
 
-The mod reads only usage figures from the engine; it reads no files, makes no network calls and stores only its own last reading.
+`ctx handoff` (typed, or sent by the button) attaches a different block instead: an instruction to reply with the handoff summary and no status line.
+
+The mod reads only usage figures from the engine; it reads no files, makes no network calls and stores only its own last reading and the last few per-turn deltas for the forecast.
 
 ## Where it shows
 
@@ -76,5 +81,8 @@ claude plugin test .
 - **פאנל פירוט** (כפתור "פירוט" או `/ctx`) עם פירוט לפי קטגוריות, מגבלות שימוש ועלות.
 - **התראות** ב-75% וב-90%.
 - **שורת סטטוס בסוף כל תשובה** ב-Cowork, שלא מציג ממשק של מודים.
+- **תחזית תורות** (הערכה): מהסף הצהוב, כמה תורות נשארו בקצב האחרון.
+- **סיכום המשך (handoff)**: כפתור בפס מעבר לסף האדום, או ההודעה `ctx handoff` ב-Cowork. Claude כותב בלוק אחד להדבקה בשיחה חדשה.
+- **`bandStyle: compact`**: פס קצר יותר למי שרוצה לחסוך מקום.
 
 **פרטיות:** כשהאפשרות `replyStatusLine` פעילה, המוד מצרף לכל הודעה שלך בלוק קצר שרק Claude רואה, עם המדידה האחרונה. זה עולה כמה עשרות טוקנים לתור, ושום דבר לא נשלח לשום מקום אחר. אפשר לכבות את זה בהגדרות.

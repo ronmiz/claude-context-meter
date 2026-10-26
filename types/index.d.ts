@@ -31,6 +31,8 @@ declare module 'claude-code' {
       breakdown: Shaped<Breakdown | null>
       alerted: number[]
       isLoading: boolean
+      /** The last few positive per-turn context deltas, newest last; cleared when the context shrinks. */
+      deltas: number[]
     }
   }
 }

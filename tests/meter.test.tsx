@@ -114,3 +114,95 @@ test('the reply line can be switched off', { options: { replyStatusLine: false }
   await $.prompt.submit({ text: 'hi', wait: false } as never)
   expect(seen ?? []).toEqual([])
 })
+
+const quiet = (on: Parameters<Parameters<typeof test>[1]>[1]) => {
+  on('session.measure', (_, e) => ({ changed: e.changed }))
+  on('ui.status', () => ({ value: undefined }))
+  on('ui.toast', () => ({ value: undefined }))
+}
+
+test('the forecast appears from the yellow threshold after three turns', async ($, on) => {
+  let seen: readonly string[] = []
+  quiet(on)
+  on('prompt.submit', (_, e) => {
+    seen = e.context ?? []
+    return { text: e.text }
+  })
+
+  // 200k window: +10k a turn, red threshold at 75% = 150k.
+  await $.session.measure(measure(80_000)) //  40%: no delta yet
+  await $.session.measure(measure(90_000)) //  45%: 1 delta
+  await $.session.measure(measure(100_000)) // 50%: 2 deltas, too few
+  await $.prompt.submit({ text: 'a', wait: false } as never)
+  expect(seen[0]).not.toContain('turns')
+
+  await $.session.measure(measure(110_000)) // 55%: 3 deltas -> (150k-110k)/10k = 4
+  await $.prompt.submit({ text: 'b', wait: false } as never)
+  expect(seen[0]).toContain('· ~4 turns to 75%`')
+
+  await $.session.measure(measure(160_000)) // 80%: past red -> to full
+  await $.prompt.submit({ text: 'c', wait: false } as never)
+  expect(seen[0]).toContain('turns to full')
+})
+
+test('a context drop resets the forecast', async ($, on) => {
+  let seen: readonly string[] = []
+  quiet(on)
+  on('prompt.submit', (_, e) => {
+    seen = e.context ?? []
+    return { text: e.text }
+  })
+
+  for (const t of [100_000, 110_000, 120_000, 130_000]) await $.session.measure(measure(t))
+  await $.session.measure(measure(30_000)) // compaction
+  for (const t of [104_000, 112_000]) await $.session.measure(measure(t))
+  await $.prompt.submit({ text: 'x', wait: false } as never)
+  expect(seen[0]).not.toContain('turns')
+})
+
+test('ctx handoff asks for one summary block and no status line', async ($, on) => {
+  let seen: readonly string[] = []
+  quiet(on)
+  on('prompt.submit', (_, e) => {
+    seen = e.context ?? []
+    return { text: e.text }
+  })
+
+  await $.session.measure(measure(160_000))
+  await $.prompt.submit({ text: 'ctx handoff', wait: false } as never)
+  expect(seen.length).toBe(1)
+  expect(seen[0]).toContain('HANDOFF')
+  expect(seen[0]).toContain('Goal, Decided, Done, Next, Files, Open')
+  expect(seen[0]).not.toContain('End your reply with this exact line')
+})
+
+test('past the red threshold the band offers Write handoff', async ($, on) => {
+  quiet(on)
+  await $.session.measure(measure(100_000))
+  let ui = await $.ui.mount({ ...BAND, surface: 'desktop' } as never)
+  expect(await ui.find({ type: 'Button', text: 'Write handoff' })).toBe(undefined)
+  await ui.unmount()
+
+  await $.session.measure(measure(160_000))
+  ui = await $.ui.mount({ ...BAND, surface: 'desktop' } as never)
+  expect((await ui.find({ type: 'Button', text: 'Write handoff' })) !== undefined).toBe(true)
+  await ui.unmount()
+})
+
+test('compact band and line drop the token count', { options: { bandStyle: 'compact' } }, async ($, on) => {
+  let seen: readonly string[] = []
+  quiet(on)
+  on('prompt.submit', (_, e) => {
+    seen = e.context ?? []
+    return { text: e.text }
+  })
+
+  await $.session.measure(measure(84_000))
+  const ui = await $.ui.mount({ ...BAND, surface: 'desktop' } as never)
+  expect((await ui.find({ type: 'Text', text: /42%/ }))?.text).toBe('42%')
+  expect(await ui.find({ type: 'Text', text: /84k/ })).toBe(undefined)
+  await ui.unmount()
+
+  await $.prompt.submit({ text: 'hi', wait: false } as never)
+  expect(seen[0]).toContain('`🟢 ▰▰▰▰▱▱▱▱▱▱ 42%`')
+})

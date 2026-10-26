@@ -1,6 +1,6 @@
 {
   "name": "context-meter",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Live context-window meter: a band above the prompt, a breakdown pane, threshold alerts, a /ctx command, and a status line at the end of each reply where the surface draws no mod UI. By default it adds a short context-usage reading to each prompt (setting: replyStatusLine)",
   "author": {
     "name": "ronmiz",
@@ -43,6 +43,16 @@
       "title": "Second alert from (%)",
       "description": "A second alert fires at this fill percentage.",
       "default": 90
+    },
+    "bandStyle": {
+      "type": "string",
+      "title": "Band style",
+      "description": "full: label, bar, tokens and delta. compact: a short bar, the percentage and the forecast; the pane holds the rest. Also shortens the reply status line.",
+      "options": [
+        "full",
+        "compact"
+      ],
+      "default": "full"
     },
     "replyStatusLine": {
       "type": "boolean",

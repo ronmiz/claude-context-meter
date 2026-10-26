@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.0 — 2026-10-26
+
+- Turns forecast (estimate): from the yellow threshold, the band and the reply status line show how many turns are left at the recent pace (`~7 turns to 75%`, or `~N turns to full` past the red threshold). Averages the last 5 turns, needs at least 3, resets after a compaction. The pane shows it at any fill.
+- Handoff: a **Write handoff** button in the band past the red threshold and in the pane, and a `ctx handoff` message for Cowork. Claude replies with one block to paste into a new chat.
+- The 75% / 90% alerts now point to the handoff and stay up 8 seconds.
+- New setting `bandStyle`: `full` (default, unchanged) or `compact`.
+
 ## 1.0.1 — 2026-10-26
 
 - The reading added to each prompt no longer tells Claude to keep quiet about it. If you ask about the status line, Claude now says it comes from this plugin and can be turned off with `replyStatusLine`.

@@ -11,11 +11,15 @@ const snapshot = atom({ plugin: 'context-meter', key: 'snapshot' } as const, nul
 const breakdown = atom({ plugin: 'context-meter', key: 'breakdown' } as const, null, { shape: 'breakdown-1' })
 const alerted = atom({ plugin: 'context-meter', key: 'alerted' } as const, [] as number[])
 const isLoading = atom({ plugin: 'context-meter', key: 'isLoading' } as const, false)
+const deltas = atom({ plugin: 'context-meter', key: 'deltas' } as const, [] as number[])
 
 type Lang = 'en' | 'he'
 type Levels = { warn: number; danger: number; critical: number }
 
 const REARM_GAP = 5
+/** How many recent turns the forecast averages, and how many it needs before it shows. */
+const FORECAST_WINDOW = 5
+const FORECAST_MIN = 3
 
 const STRINGS = {
   en: {
@@ -42,6 +46,12 @@ const STRINGS = {
     cmdNoneWindow: (w: string) => `Context: no reading yet · window ${w}`,
     limit: (kind: string) =>
       kind === 'five_hour' ? '5-hour limit' : kind === 'seven_day' ? '7-day limit' : kind === 'spend_limit' ? 'Spend limit' : kind,
+    turns: (n: number, to: number | null) => `~${n} ${n === 1 ? 'turn' : 'turns'} to ${to === null ? 'full' : `${to}%`}`,
+    forecast: 'Forecast',
+    forecastNote: 'Estimate from the last few turns; one large file or tool result moves it.',
+    forecastNeedMore: 'Appears after a few more turns.',
+    handoff: 'Write handoff',
+    handoffHint: 'use Write handoff in the band, or send ctx handoff',
   },
   he: {
     title: 'הקשר',
@@ -67,6 +77,12 @@ const STRINGS = {
     cmdNoneWindow: (w: string) => `הקשר: עדיין אין מדידה · חלון ${w}`,
     limit: (kind: string) =>
       kind === 'five_hour' ? 'מגבלת 5 שעות' : kind === 'seven_day' ? 'מגבלת 7 ימים' : kind === 'spend_limit' ? 'מגבלת הוצאה' : kind,
+    turns: (n: number, to: number | null) => `~${n} ${n === 1 ? 'תור' : 'תורות'} עד ${to === null ? 'מילוי' : `${to}%`}`,
+    forecast: 'תחזית',
+    forecastNote: 'הערכה לפי התורות האחרונים; קובץ גדול או תוצאת כלי גדולה משנים אותה.',
+    forecastNeedMore: 'תופיע אחרי עוד כמה תורות.',
+    handoff: 'כתוב סיכום המשך',
+    handoffHint: 'לחץ "כתוב סיכום המשך" בפס, או שלח ctx handoff',
   },
 } as const
 
@@ -107,12 +123,50 @@ function cells(percent: number, width: number) {
   return '▰'.repeat(filled) + '▱'.repeat(width - filled)
 }
 
+/**
+ * Turns left at the recent pace: to the red threshold while under it, to a full
+ * window once past it. Null under the yellow threshold or before enough turns.
+ */
+function forecast(s: Snapshot, recent: readonly number[], lv: Levels, lang: Lang, from = lv.warn): string | null {
+  if (s.percent === null || s.tokens === null || s.percent < from || recent.length < FORECAST_MIN) return null
+  const avg = recent.reduce((a, b) => a + b, 0) / recent.length
+  if (!(avg > 0)) return null
+  const isPastDanger = s.percent >= lv.danger
+  const target = isPastDanger ? s.window : (s.window * lv.danger) / 100
+  const left = Math.max(0, Math.floor((target - s.tokens) / avg))
+  return STRINGS[lang].turns(left, isPastDanger ? null : lv.danger)
+}
+
 /** The one-line reading, all left-to-right so it never reorders inside a right-to-left message. */
-function statusLine(s: Snapshot & { percent: number; tokens: number }, lv: Levels, lang: Lang): string {
-  const parts = [`${dot(s.percent, lv)} ${cells(s.percent, 10)} ${s.percent}%`, `${fmt(s.tokens)} / ${fmt(s.window)}`]
-  if (s.delta !== null) parts.push(fmtDelta(s.delta))
-  if (s.percent >= lv.danger) parts.push(STRINGS[lang].newChat)
+function statusLine(
+  s: Snapshot & { percent: number; tokens: number },
+  lv: Levels,
+  lang: Lang,
+  fc: string | null = null,
+  isCompact = false,
+): string {
+  const parts = [`${dot(s.percent, lv)} ${cells(s.percent, 10)} ${s.percent}%`]
+  if (!isCompact) {
+    parts.push(`${fmt(s.tokens)} / ${fmt(s.window)}`)
+    if (s.delta !== null) parts.push(fmtDelta(s.delta))
+  }
+  if (fc) parts.push(fc)
+  if (!isCompact && s.percent >= lv.danger) parts.push(STRINGS[lang].newChat)
   return parts.join(' · ')
+}
+
+/** What a `ctx handoff` message attaches: the model replies with one summary block a new chat can start from. */
+function handoffBlock(lang: Lang): string {
+  return [
+    '<context-meter>',
+    'The user asked for a handoff summary to continue this work in a new chat. Reply with only one fenced code block and nothing else (no status line).',
+    'First line: HANDOFF — paste into a new chat. Then one line each, in this order: Goal, Decided, Done, Next, Files, Open.',
+    'Use only what was actually said or done in this conversation; write "none" where a line has nothing. Keep it under 25 lines.',
+    lang === 'he' ? 'Write the content in Hebrew and keep the line labels in English.' : '',
+    '</context-meter>',
+  ]
+    .filter(Boolean)
+    .join('\n')
 }
 
 function toSnapshot(
@@ -190,6 +244,18 @@ async function freshCard($: EngineInterface, detail: 'summary' | 'full', lv: Lev
   return textCard(s, await read($, breakdown), lv, lang)
 }
 
+/** Start a handoff: the same as typing `ctx handoff`, so it reads the same in every surface. */
+async function writeHandoff($: EngineInterface) {
+  await $.prompt.submit({ text: 'ctx handoff', asUser: true })
+}
+
+/** The status line for a snapshot, with the forecast when there is one; undefined before a reading. */
+async function lineFor($: EngineInterface, s: Snapshot | null, lv: Levels, lang: Lang, isCompact: boolean) {
+  if (!s || s.percent === null || s.tokens === null) return undefined
+  const fc = forecast(s, await read($, deltas), lv, lang)
+  return statusLine({ ...s, percent: s.percent, tokens: s.tokens }, lv, lang, fc, isCompact)
+}
+
 async function openPane($: EngineInterface, lang: Lang) {
   await $.ui.open({ id: PANE, title: STRINGS[lang].title })
   if ((await read($, breakdown)) === null) void loadBreakdown($, 'summary', lang)
@@ -205,6 +271,7 @@ export const register: Register = (on, options) => {
   const lv: Levels = { warn, danger, critical }
   const alerts = [...new Set([danger, critical])]
   const isReplyLineOn = options?.replyStatusLine !== false
+  const isCompact = options?.bandStyle === 'compact'
 
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'ctx', description: 'Show context-window usage and open the Context pane' })
@@ -233,13 +300,15 @@ export const register: Register = (on, options) => {
 
   on('session.measure', async ($, e, next) => {
     const prev = await read($, snapshot)
-    const snap = toSnapshot(e.context, e.rateLimits, e.cost, prev, e.changed.includes('context'))
+    const isContextChange = e.changed.includes('context')
+    const snap = toSnapshot(e.context, e.rateLimits, e.cost, prev, isContextChange)
     await update($, snapshot, () => snap)
-    $.ui.status(
-      snap.percent === null || snap.tokens === null
-        ? undefined
-        : statusLine({ ...snap, percent: snap.percent, tokens: snap.tokens }, lv, lang),
-    )
+    if (isContextChange && snap.delta !== null && snap.delta !== 0) {
+      const d = snap.delta
+      // A drop means a compaction or a fresh context: the old pace no longer applies.
+      await update($, deltas, was => (d < 0 ? [] : [...was, d].slice(-FORECAST_WINDOW)))
+    }
+    $.ui.status(await lineFor($, snap, lv, lang, isCompact))
 
     if (snap.percent !== null) {
       const percent = snap.percent
@@ -247,7 +316,7 @@ export const register: Register = (on, options) => {
       const crossed = alerts.filter(a => percent >= a && !was.includes(a))
       const kept = was.filter(a => percent >= a - REARM_GAP)
       if (crossed.length > 0) {
-        $.ui.toast(t.reached(percent, fmt(snap.tokens ?? 0), fmt(snap.window)))
+        $.ui.toast(`${t.reached(percent, fmt(snap.tokens ?? 0), fmt(snap.window))} · ${t.handoffHint}`, { timeoutMs: 8000 })
         await update($, alerted, () => [...kept, ...crossed])
       } else if (kept.length !== was.length) {
         await update($, alerted, () => kept)
@@ -279,11 +348,16 @@ export const register: Register = (on, options) => {
       return next({ ...e, context: [...(e.context ?? []), block] })
     }
 
-    if (!isReplyLineOn) return next(e)
-    const s = await read($, snapshot)
-    if (!s || s.percent === null || s.tokens === null) return next(e)
+    // "ctx handoff", typed or sent by the Write handoff button: ask for a
+    // summary a new chat can start from.
+    if (ask === 'ctx handoff') {
+      return next({ ...e, context: [...(e.context ?? []), handoffBlock(lang)] })
+    }
 
-    const line = statusLine({ ...s, percent: s.percent, tokens: s.tokens }, lv, lang)
+    if (!isReplyLineOn) return next(e)
+    const line = await lineFor($, await read($, snapshot), lv, lang, isCompact)
+    if (!line) return next(e)
+
     const block = [
       '<context-meter>',
       `reading: ${line} (measured after the previous turn)`,
@@ -305,10 +379,9 @@ export const register: Register = (on, options) => {
   on('command.run', { command: 'ctx' }, async $ => {
     await openPane($, lang)
     const s = await read($, snapshot)
-    if (!s || s.percent === null || s.tokens === null) {
-      return { text: s ? t.cmdNoneWindow(fmt(s.window)) : t.cmdNone }
-    }
-    return { text: statusLine({ ...s, percent: s.percent, tokens: s.tokens }, lv, lang) }
+    const line = await lineFor($, s, lv, lang, isCompact)
+    if (!line) return { text: s ? t.cmdNoneWindow(fmt(s.window)) : t.cmdNone }
+    return { text: line }
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
@@ -327,6 +400,27 @@ export const register: Register = (on, options) => {
     }
 
     const color = tone(s.percent, lv)
+    const fc = forecast(s, await read($, deltas), lv, lang)
+    const isPastDanger = s.percent !== null && s.percent >= lv.danger
+    const handoffButton = isPastDanger ? (
+      <Button key="handoff" label={t.handoff} onPress={() => writeHandoff($)} />
+    ) : null
+
+    // Compact: no label, no token count, a short bar; the pane holds the rest.
+    if (isCompact) {
+      return (
+        <Box>
+          <Text color={color}>{s.percent === null ? '' : cells(s.percent, 10)} </Text>
+          <Text color={color} tabular weight="semibold">
+            {s.percent === null ? '—' : `${s.percent}%`}
+          </Text>
+          <Text dimColor tabular>{fc ? `  ${fc}  ` : '  '}</Text>
+          {handoffButton}
+          <Button key="details" label="›" onPress={() => openPane($, lang)} />
+        </Box>
+      )
+    }
+
     const b = bar(s.percent, 15)
 
     return (
@@ -344,6 +438,8 @@ export const register: Register = (on, options) => {
           {s.delta !== null ? `  ${fmtDelta(s.delta)}` : ''}
           {'  '}
         </Text>
+        {fc ? <Text tabular>{`· ${fc}  `}</Text> : null}
+        {handoffButton}
         <Button key="details" label={t.details} onPress={() => openPane($, lang)} />
       </Box>
     )
@@ -365,6 +461,7 @@ export const register: Register = (on, options) => {
 
     const color = tone(s.percent, lv)
     const b = bar(s.percent, 24)
+    const paneForecast = forecast(s, await read($, deltas), lv, lang, 0)
     const used = bd ? bd.rows.filter(r => r.kind === 'used') : []
     const maxRow = used.reduce((m, r) => Math.max(m, r.tokens), 1)
     const others = bd ? bd.rows.filter(r => r.kind !== 'used') : []
@@ -383,6 +480,18 @@ export const register: Register = (on, options) => {
             <Text color={color}>{b.full}</Text>
             <Text dimColor>{b.empty}</Text>
           </Box>
+        </Box>
+
+        <Box flexDirection="column">
+          <Text weight="semibold" dir={dir}>
+            {t.forecast} {t.estimate}
+          </Text>
+          {paneForecast ? (
+            <Text tabular>{paneForecast}</Text>
+          ) : (
+            <Text dimColor dir={dir}>{t.forecastNeedMore}</Text>
+          )}
+          <Text dimColor dir={dir}>{t.forecastNote}</Text>
         </Box>
 
         <Box flexDirection="column">
@@ -430,6 +539,7 @@ export const register: Register = (on, options) => {
         </Box>
 
         <Box gap={1}>
+          <Button key="handoff" label={t.handoff} onPress={() => writeHandoff($)} />
           <Button key="refresh-full" label={loading ? t.computing : t.refresh} onPress={() => loadBreakdown($, 'full', lang)} />
           <Button key="refresh-quick" label={t.quick} onPress={() => loadBreakdown($, 'summary', lang)} />
         </Box>
