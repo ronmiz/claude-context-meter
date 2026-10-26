@@ -7,7 +7,7 @@ Please report security issues privately through GitHub:
 
 Do not open a public issue for a security problem.
 
-Include what you found, how to reproduce it, and the version of context-meter (`version` in `.claude-plugin/plugin.json`). You should get a first reply within 7 days. Confirmed issues are fixed in a new release and noted in `CHANGELOG.md`.
+Include what you found, how to reproduce it, and the version of context-meter (`version` in `.claude-plugin/plugin.json`). I aim to send a first reply within 14 days. Confirmed issues are fixed in a new release and noted in `CHANGELOG.md`.
 
 ## Supported versions
 
